@@ -13,18 +13,63 @@ _auth_password = None
 _iot_device_name = None
 _gw_iot_name = None
 
-def set_credentials(ip_address, auth_username, auth_password, iot_device_name, gw_iot_name):
+def set_credentials(ip_address, auth_username, auth_password):
     """Set the global credentials and device names for API requests."""
-    global _ip_address, _auth_username, _auth_password, _iot_device_name, _gw_iot_name
+    global _ip_address, _auth_username, _auth_password
     _ip_address = ip_address
     _auth_username = auth_username
     _auth_password = auth_password
+
+def set_iot_credentials(iot_device_name, gw_iot_name):
+    global _iot_device_name, _gw_iot_name
     _iot_device_name = iot_device_name
     _gw_iot_name = gw_iot_name
 
+def get_iot_info():
+    iot_info = make_api_request(None, "GET", "/route.cgi?api=profile.get")
+    if not iot_info:
+        _LOGGER.error("Failed to fetch iot info")
+        return {}
+    else:
+        return {"iot_device_name": iot_info.get("iotDeviceName"), "gw_iot_name": iot_info.get("gwIotName")}
+
+def fetch_devices():
+    """Fetch the list of devices and their states from the Dnake API."""
+
+    # 获取设备状态
+    device_states = make_api_request({"action": "readAllDevState"})
+    if not device_states or "devList" not in device_states:
+        _LOGGER.error("Failed to fetch device states")
+        return []
+
+    # 获取设备列表
+    device_list = make_api_request(None, method="GET", endpoint="/smart/speDev.info")
+    if not device_list:
+        _LOGGER.error("Failed to fetch device list")
+        return []
+
+    # 将设备状态与设备列表匹配
+    devices = []
+    for device in device_list.get("dl"):
+        dev_no = device.get("nm")
+        dev_ch = device.get("ch")
+        # 查找匹配的设备状态
+        state_info = next(
+            (state for state in device_states["devList"] if state["devNo"] == dev_no and state["devCh"] == dev_ch),
+            None,
+        )
+        if state_info:
+            device.update({
+                "state": state_info.get("state", 0),  # 默认状态为关
+                "level": state_info.get("level", 0),  # 默认level为0
+            })
+        devices.append(device)
+
+    return devices
+
 def make_api_request(payload=None, method="POST", endpoint="/route.cgi?api=request"):
     """Make an API request to the Dnake device."""
-    if _ip_address is None or _auth_username is None or _auth_password is None or _iot_device_name is None or _gw_iot_name is None:
+    if _ip_address is None or _auth_username is None or _auth_password is None:
         _LOGGER.error("API credentials are not set")
         return None
 
@@ -59,7 +104,7 @@ def make_api_request(payload=None, method="POST", endpoint="/route.cgi?api=reque
                 response = requests.post(
                     url, 
                     headers=headers, 
-                    json=post_data,  # 使用 json 参数而不是 data
+                    json=post_data,
                     timeout=10,
                     verify=False
                 )

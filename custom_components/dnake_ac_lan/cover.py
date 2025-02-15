@@ -3,13 +3,12 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_time_interval, async_call_later
 from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature
 )
-from .device_discovery import fetch_devices
-from .utils import make_api_request
+from .utils import make_api_request, fetch_devices
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,18 +27,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async_add_entities(covers)
 
     # 定时刷新设备状态
-    scan_interval = timedelta(seconds=entry.data.get("scan_interval", 30))
+    scan_interval = entry.data.get("scan_interval", 30)
+    
+    async def async_update_devices(now=None):
+        """更新所有设备状态."""
+        _LOGGER.debug("Updating Dnake cover states")
+        devices = await hass.async_add_executor_job(fetch_devices)
+        for device in devices:
+            if device.get("ty") == 514:  # 窗帘设备
+                for cover in covers:
+                    if cover._dev_no == device.get("nm") and cover._dev_ch == device.get("ch"):
+                        new_position = device.get("level", 0)
+                        cover._current_position = new_position
+                        cover._is_closed = new_position == 0
+                        cover.async_write_ha_state()
 
-    @callback
-    def refresh_devices(event_time):
-        """Refresh the state of all devices."""
-        for cover in covers:
-            cover.schedule_update_ha_state(force_refresh=True)
-
-    # 注册定时任务
-    entry.async_on_unload(
-        async_track_time_interval(hass, refresh_devices, scan_interval)
-    )
+    # 首次更新
+    await async_update_devices()
+    
+    # 设置定时更新
+    async_track_time_interval(hass, async_update_devices, timedelta(seconds=scan_interval))
 
 class DnakeCover(CoverEntity):
     """Representation of a Dnake Cover with position control."""
@@ -134,11 +141,13 @@ class DnakeCover(CoverEntity):
         # 延迟 6 秒后执行实际更新逻辑
         async_call_later(self.hass, 6, self._async_delayed_update)
 
-    async def _async_delayed_update(self, _):
+    def _async_delayed_update(self, _):
         """Delayed update logic."""
-        devices = await self.hass.async_add_executor_job(fetch_devices)
-        for device in devices:
-            if device.get("nm") == self._dev_no and device.get("ch") == self._dev_ch:
-                self._current_position = device.get("level", 0)
-                self._is_closed = device.get("level", 0) == 0
-                break
+        payload = {"action": "ctrlDev", "devNo": self._dev_no, "devCh": self._dev_ch}
+        try:
+            response = make_api_request(payload=payload)
+            if response is not None and response.get("result") == "ok":
+                self._current_position = response.get("level", 0)
+                self._is_closed = response.get("level", 0) == 0
+        except Exception as ex:
+            _LOGGER.error("Error updating cover state: %s", ex)
