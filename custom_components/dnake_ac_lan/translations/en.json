@@ -1,0 +1,24 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Connect to Dnake Device",
+                "description": "Please enter your Dnake device connection details",
+                "data": {
+                    "ip_address": "Door Access IP Address",
+                    "auth_username": "Door Access Username",
+                    "auth_password": "Door Access Password",
+                    "iot_device_name": "Local IOT Name",
+                    "gw_iot_name": "Gateway IOT Name",
+                    "scan_interval": "Status Refresh Interval (seconds)"
+                }
+            }
+        },
+        "error": {
+            "cannot_connect": "Failed to connect, please check your configuration"
+        },
+        "abort": {
+            "already_configured": "Device is already configured"
+        }
+    }
+} 

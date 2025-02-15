@@ -1,0 +1,12 @@
+{
+  "domain": "dnake_ac_lan",
+  "name": "Dnake AC LAN",
+  "version": "1.0",
+  "documentation": "https://github.com/wslsq/dnake_ac_lan#readme",
+  "issue_tracker": "https://github.com/wslsq/dnake_ac_lan/issues",
+  "config_flow": true,
+  "dependencies": [],
+  "codeowners": ["@wslsq"],
+  "requirements": ["requests"],
+  "iot_class": "local_polling"
+}
