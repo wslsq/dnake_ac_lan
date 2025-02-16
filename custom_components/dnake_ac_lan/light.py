@@ -101,7 +101,7 @@ class DnakeLight(LightEntity):
     async def async_update(self):
         """Fetch new state data for this light."""
         # 延迟 2 秒后执行实际更新逻辑
-        async_call_later(self.hass, 32, self._async_delayed_update)
+        async_call_later(self.hass, 2, self._async_delayed_update)
 
     def _async_delayed_update(self, _):
         """Delayed update logic."""
