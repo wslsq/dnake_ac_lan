@@ -37,9 +37,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             if device.get("ty") == 514:  # 窗帘设备
                 for cover in covers:
                     if cover._dev_no == device.get("nm") and cover._dev_ch == device.get("ch"):
-                        new_position = device.get("level", 0)
-                        cover._current_position = new_position
-                        cover._is_closed = new_position == 0
+                        current_level = device.get("level", 0)
+                        cover._current_level = current_level
+                        cover._is_closed = current_level == 0
                         cover.async_write_ha_state()
 
     # 首次更新
@@ -55,8 +55,8 @@ class DnakeCover(CoverEntity):
         """Initialize the cover."""
         self._device = device
         self._name = device.get("na")
-        self._current_position = device.get("level", 0)
-        self._is_closed = self._current_position == 0
+        self._current_level = device.get("level", 0)
+        self._is_closed = self._current_level == 0
         self._is_opening = False
         self._is_closing = False
         self._dev_no = device.get("nm")
@@ -90,7 +90,7 @@ class DnakeCover(CoverEntity):
     @property
     def current_cover_position(self):
         """Return the current position of the cover."""
-        return int((self._current_position / 254) * 100) if self._current_position is not None else None
+        return int((self._current_level / 254) * 100) if self._current_level is not None else None
 
     @property
     def supported_features(self):
@@ -104,23 +104,18 @@ class DnakeCover(CoverEntity):
 
     def set_cover_position(self, **kwargs):
         """Move the cover to a specific position."""
+        current_level = self.get_current_level()
         position = kwargs.get("position", 0)  # Position is 0-100
         level = int((position / 100) * 254)  # Convert to 0-254
         level = max(0, min(254, level))  # Ensure level is within range
 
-        payload = {
-            "cmd": "level", 
-            "action": "ctrlDev", 
-            "devNo": self._dev_no, 
-            "devCh": self._dev_ch, 
-            "level": level
-        }
+        payload = {"cmd": "level", "action": "ctrlDev", "devNo": self._dev_no, "devCh": self._dev_ch, "level": level}
         response = make_api_request(payload=payload)
         if response is not None and response.get("result") == "ok":
-            self._current_position = level
-            self._is_opening = level > (self._current_position or 0)
-            self._is_closing = level < (self._current_position or 254)
-            self._is_closed = level == 0
+            self._current_level = level
+            self._is_opening = level > current_level
+            self._is_closing = level < current_level
+            self._is_closed = level == current_level
 
     def open_cover(self, **kwargs):
         """Open the cover."""
@@ -132,22 +127,41 @@ class DnakeCover(CoverEntity):
 
     def stop_cover(self, **kwargs):
         """Stop the cover."""
-        # 获取当前位置并保持在该位置
-        current_position = self._current_position
-        self.set_cover_position(position=int((current_position / 254) * 100))
-
-    async def async_update(self):
-        """Fetch new state data for this light."""
-        # 延迟 6 秒后执行实际更新逻辑
-        async_call_later(self.hass, 6, self._async_delayed_update)
-
-    def _async_delayed_update(self, _):
-        """Delayed update logic."""
-        payload = {"action": "ctrlDev", "devNo": self._dev_no, "devCh": self._dev_ch}
+        payload = {"cmd": "stop", "action": "ctrlDev", "devNo": self._dev_no, "devCh": self._dev_ch}
         try:
             response = make_api_request(payload=payload)
             if response is not None and response.get("result") == "ok":
-                self._current_position = response.get("level", 0)
-                self._is_closed = response.get("level", 0) == 0
+                current_level = self.get_current_level()
+                self._current_level = current_level
+                self._is_closed = current_level == 0
+                self._is_opening = False
+                self._is_closing = False 
+        except Exception as ex:
+            _LOGGER.error("Error stopping cover: %s", ex)
+
+
+    async def async_update(self):
+        """Fetch new state data for this light."""
+        # 延迟 9 秒后执行实际更新逻辑
+        async_call_later(self.hass, 9, self._async_delayed_update)
+
+    def get_current_level(self):
+        payload = {"action": "readDev", "devNo": self._dev_no, "devCh": self._dev_ch}
+        try:
+            response = make_api_request(payload=payload)
+            if response is not None and response.get("result") == "ok":
+                return response.get("level", 0)
+        except Exception as ex:
+            _LOGGER.error("Error getting cover level: %s", ex)
+            return 0
+
+    def _async_delayed_update(self, _):
+        """Delayed update logic."""
+        try:
+            current_level = self.get_current_level()
+            self._current_level = current_level
+            self._is_closed = current_level == 0
+            self._is_opening = False
+            self._is_closing = False
         except Exception as ex:
             _LOGGER.error("Error updating cover state: %s", ex)

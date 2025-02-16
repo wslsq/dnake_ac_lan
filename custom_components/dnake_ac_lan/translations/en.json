@@ -5,11 +5,9 @@
                 "title": "Connect to Dnake Device",
                 "description": "Please enter your Dnake device connection details",
                 "data": {
-                    "ip_address": "Door Access IP Address",
-                    "auth_username": "Door Access Username",
-                    "auth_password": "Door Access Password",
-                    "iot_device_name": "Local IOT Name",
-                    "gw_iot_name": "Gateway IOT Name",
+                    "ip_address": "Gateway IP Address",
+                    "auth_username": "Gateway Access Username",
+                    "auth_password": "Gateway Access Password",
                     "scan_interval": "Status Refresh Interval (seconds)"
                 }
             }

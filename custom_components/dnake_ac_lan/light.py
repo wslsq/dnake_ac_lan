@@ -100,12 +100,12 @@ class DnakeLight(LightEntity):
 
     async def async_update(self):
         """Fetch new state data for this light."""
-        # 延迟 3 秒后执行实际更新逻辑
-        async_call_later(self.hass, 3, self._async_delayed_update)
+        # 延迟 2 秒后执行实际更新逻辑
+        async_call_later(self.hass, 32, self._async_delayed_update)
 
     def _async_delayed_update(self, _):
         """Delayed update logic."""
-        payload = {"action": "ctrlDev", "devNo": self._dev_no, "devCh": self._dev_ch}
+        payload = {"action": "readDev", "devNo": self._dev_no, "devCh": self._dev_ch}
         try:
             response = make_api_request(payload=payload)
             if response is not None and response.get("result") == "ok":

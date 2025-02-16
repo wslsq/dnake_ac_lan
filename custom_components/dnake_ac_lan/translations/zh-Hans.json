@@ -5,11 +5,9 @@
                 "title": "连接到 Dnake 设备",
                 "description": "请输入 Dnake 设备的连接信息",
                 "data": {
-                    "ip_address": "门禁IP地址",
-                    "auth_username": "门禁用户名",
-                    "auth_password": "门禁密码",
-                    "iot_device_name": "本地 IOT 名称",
-                    "gw_iot_name": "网关 IOT 名称",
+                    "ip_address": "网关IP地址",
+                    "auth_username": "网关用户名",
+                    "auth_password": "网关密码",
                     "scan_interval": "状态刷新间隔（秒）"
                 }
             }
