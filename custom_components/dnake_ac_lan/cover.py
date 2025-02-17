@@ -137,7 +137,6 @@ class DnakeCover(CoverEntity):
         except Exception as ex:
             _LOGGER.error("Error stopping cover: %s", ex)
 
-
     async def async_update(self):
         # 避免和批量更新冲突
         self._dev_is_busy = True
