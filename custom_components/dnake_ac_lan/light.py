@@ -8,13 +8,13 @@ from homeassistant.components.light import (
     LightEntity,
     ColorMode,
 )
-from .utils import make_api_request, fetch_devices
+from .utils import make_api_request, get_devices, get_device_states
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up Dnake lights from a config entry."""
-    devices = await hass.async_add_executor_job(fetch_devices)
+    devices = await hass.async_add_executor_job(get_devices)
     if not devices:
         _LOGGER.error("No devices found")
         return
@@ -32,17 +32,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async def async_update_devices(now=None):
         """更新所有设备状态."""
         _LOGGER.debug("Updating Dnake light states")
-        devices = await hass.async_add_executor_job(fetch_devices)
-        for device in devices:
-            if device.get("ty") == 256:  # 灯具设备
-                for light in lights:
-                    if light._dev_no == device.get("nm") and light._dev_ch == device.get("ch"):
-                        light._is_on = device.get("state") == 1
+        device_states = await hass.async_add_executor_job(get_device_states)
+        for light in lights:
+            if light._dev_is_busy == False:
+                for device_state in device_states:
+                    if light._dev_no == device_state.get("devNo") and light._dev_ch == device_state.get("devCh"):
+                        light._is_on = device_state.get("state") == 1
                         light.async_write_ha_state()
 
-    # 首次更新
-    await async_update_devices()
-    
     # 设置定时更新
     async_track_time_interval(hass, async_update_devices, timedelta(seconds=scan_interval))
 
@@ -54,10 +51,11 @@ class DnakeLight(LightEntity):
         self._device = device
         self._name = device.get("na")
         self._is_on = device.get("state") == 1
-        self._dev_no = device.get("nm")
-        self._dev_ch = device.get("ch")
         self._attr_supported_color_modes = {ColorMode.ONOFF}
         self._attr_color_mode = ColorMode.ONOFF
+        self._dev_no = device.get("nm")
+        self._dev_ch = device.get("ch")
+        self._dev_is_busy = False
 
     @property
     def name(self):
@@ -100,6 +98,8 @@ class DnakeLight(LightEntity):
 
     async def async_update(self):
         """Fetch new state data for this light."""
+        # 避免和批量更新冲突
+        self._dev_is_busy = True
         # 延迟 2 秒后执行实际更新逻辑
         async_call_later(self.hass, 2, self._async_delayed_update)
 
@@ -112,3 +112,4 @@ class DnakeLight(LightEntity):
                 self._is_on = response.get("state") == 1
         except Exception as ex:
             _LOGGER.error("Error updating light state: %s", ex)
+        self._dev_is_busy = False

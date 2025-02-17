@@ -33,16 +33,15 @@ def get_iot_info():
     else:
         return {"iot_device_name": iot_info.get("iotDeviceName"), "gw_iot_name": iot_info.get("gwIotName")}
 
-def fetch_devices():
-    """Fetch the list of devices and their states from the Dnake API."""
-
-    # 获取设备状态
+def get_device_states():
     device_states = make_api_request({"action": "readAllDevState"})
     if not device_states or "devList" not in device_states:
         _LOGGER.error("Failed to fetch device states")
         return []
+    return device_states.get("devList")
 
-    # 获取设备列表
+def get_devices():
+    device_states = get_device_states()
     device_list = make_api_request(None, method="GET", endpoint="/smart/speDev.info")
     if not device_list:
         _LOGGER.error("Failed to fetch device list")
@@ -55,7 +54,7 @@ def fetch_devices():
         dev_ch = device.get("ch")
         # 查找匹配的设备状态
         state_info = next(
-            (state for state in device_states["devList"] if state["devNo"] == dev_no and state["devCh"] == dev_ch),
+            (state for state in device_states if state.get("devNo") == dev_no and state.get("devCh") == dev_ch),
             None,
         )
         if state_info:

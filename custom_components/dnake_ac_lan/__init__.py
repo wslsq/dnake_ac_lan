@@ -21,7 +21,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     gw_iot_name = entry.data["gw_iot_name"]
     set_iot_credentials(iot_device_name, gw_iot_name)
     
-    # 使用 async_forward_entry_setups 设置平台
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True

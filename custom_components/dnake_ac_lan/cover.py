@@ -8,13 +8,13 @@ from homeassistant.components.cover import (
     CoverEntity,
     CoverEntityFeature
 )
-from .utils import make_api_request, fetch_devices
+from .utils import make_api_request, get_devices, get_device_states
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback):
     """Set up Dnake covers from a config entry."""
-    devices = await hass.async_add_executor_job(fetch_devices)
+    devices = await hass.async_add_executor_job(get_devices)
     if not devices:
         _LOGGER.error("No devices found")
         return
@@ -32,19 +32,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     async def async_update_devices(now=None):
         """更新所有设备状态."""
         _LOGGER.debug("Updating Dnake cover states")
-        devices = await hass.async_add_executor_job(fetch_devices)
-        for device in devices:
-            if device.get("ty") == 514:  # 窗帘设备
-                for cover in covers:
-                    if cover._dev_no == device.get("nm") and cover._dev_ch == device.get("ch"):
-                        current_level = device.get("level", 0)
+        device_states = await hass.async_add_executor_job(get_device_states)
+        for cover in covers:
+            if cover._dev_is_busy == False:
+                for device_state in device_states:
+                    if cover._dev_no == device_state.get("devNo") and cover._dev_ch == device_state.get("devCh"):
+                        current_level = device_state.get("level", 0)
                         cover._current_level = current_level
                         cover._is_closed = current_level == 0
                         cover.async_write_ha_state()
 
-    # 首次更新
-    await async_update_devices()
-    
     # 设置定时更新
     async_track_time_interval(hass, async_update_devices, timedelta(seconds=scan_interval))
 
@@ -61,6 +58,7 @@ class DnakeCover(CoverEntity):
         self._is_closing = False
         self._dev_no = device.get("nm")
         self._dev_ch = device.get("ch")
+        self._dev_is_busy = False
 
     @property
     def name(self):
@@ -141,7 +139,8 @@ class DnakeCover(CoverEntity):
 
 
     async def async_update(self):
-        """Fetch new state data for this light."""
+        # 避免和批量更新冲突
+        self._dev_is_busy = True
         # 延迟 9 秒后执行实际更新逻辑
         async_call_later(self.hass, 9, self._async_delayed_update)
 
@@ -165,3 +164,4 @@ class DnakeCover(CoverEntity):
             self._is_closing = False
         except Exception as ex:
             _LOGGER.error("Error updating cover state: %s", ex)
+        self._dev_is_busy = False
